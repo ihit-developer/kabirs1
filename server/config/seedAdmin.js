@@ -1,28 +1,69 @@
-// Run once to create/reset the admin login: node server/config/seedAdmin.js
-require('dotenv').config();
-const mongoose = require('mongoose');
-const Admin = require('../models/Admin');
+// server/config/seedAdmin.js
+// Run: node server/config/seedAdmin.js
 
-async function seed() {
-  await mongoose.connect(process.env.MONGO_URI);
+require("dotenv").config();
 
-  const username = (process.env.ADMIN_USERNAME || 'admin').toLowerCase().trim();
-  const password = process.env.ADMIN_PASSWORD || 'kabir1234';
+const mongoose = require("mongoose");
+const Admin = require("../models/Admin");
 
-  const passwordHash = await Admin.hashPassword(password);
+async function seedAdmin() {
+  try {
+    // Check required environment variables
+    if (!process.env.MONGO_URI) {
+      throw new Error("MONGO_URI is not set in environment variables.");
+    }
 
-  await Admin.findOneAndUpdate(
-    { username },
-    { username, passwordHash, name: "Kabir's Admin" },
-    { upsert: true, new: true, setDefaultsOnInsert: true },
-  );
+    const username = (process.env.ADMIN_USERNAME || "admin")
+      .toLowerCase()
+      .trim();
 
-  console.log(`✅ Admin account ready — username: "${username}"`);
-  console.log('   Set ADMIN_USERNAME / ADMIN_PASSWORD in .env before running this to choose your own credentials.');
-  mongoose.disconnect();
+    const password = process.env.ADMIN_PASSWORD || "kabir1234";
+
+    if (!username || !password) {
+      throw new Error("ADMIN_USERNAME and ADMIN_PASSWORD are required.");
+    }
+
+    // Connect to MongoDB
+    await mongoose.connect(process.env.MONGO_URI);
+
+    console.log("✅ Connected to MongoDB");
+
+    // Hash password
+    const passwordHash = await Admin.hashPassword(password);
+
+    // Create or update admin
+    const admin = await Admin.findOneAndUpdate(
+      { username },
+      {
+        username,
+        passwordHash,
+        name: "Kabir's Admin",
+      },
+      {
+        upsert: true,
+        new: true,
+        setDefaultsOnInsert: true,
+      },
+    );
+
+    console.log("✅ Admin account created/updated successfully");
+    console.log(`Username: ${admin.username}`);
+
+    await mongoose.disconnect();
+
+    console.log("✅ MongoDB connection closed");
+    process.exit(0);
+  } catch (error) {
+    console.error("❌ Admin seeding failed:", error.message);
+
+    try {
+      await mongoose.disconnect();
+    } catch (disconnectError) {
+      // Ignore disconnect errors
+    }
+
+    process.exit(1);
+  }
 }
 
-seed().catch((err) => {
-  console.error('Seeding error:', err);
-  process.exit(1);
-});
+seedAdmin();
